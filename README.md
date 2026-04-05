@@ -23,5 +23,5 @@ A gamified study tracker with streaks, study hours, revision reminders, and task
 
 ## Notes
 
-- Backend connects to MongoDB at `mongodb://127.0.0.1:27017/studystreak` by default.
-- Set `MONGODB_URI` to change the connection string.
+- Backend uses in-memory storage and does not require a MongoDB database.
+- No database setup is required to run the backend locally.

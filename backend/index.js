@@ -1,19 +1,13 @@
 const express = require('express');
 const cors = require('cors');
-const mongoose = require('mongoose');
-const User = require('./models/User');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const MONGO_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/studystreak';
 
 app.use(cors({ origin: 'http://localhost:5173' }));
 app.use(express.json());
 
-mongoose
-  .connect(MONGO_URI)
-  .then(() => console.log('MongoDB connected'))
-  .catch((error) => console.error('MongoDB connection error:', error));
+let userStore = null;
 
 const getLevel = (xp) => Math.max(1, Math.floor(xp / 200) + 1);
 const formatDate = () => new Date().toISOString().slice(0, 10);
@@ -82,29 +76,32 @@ const buildRevisionData = (user) => {
   };
 };
 
+const generateId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const saveUser = async () => {};
+
 const ensureUser = async () => {
-  let user = await User.findOne();
-  if (!user) {
-    user = await User.create({
+  if (!userStore) {
+    userStore = {
       streak: 0,
       todayHours: 0,
       monthHours: 0,
       xp: 0,
       level: 1,
+      examDate: null,
       tasks: [
-        { text: 'Review flashcards', done: false, reminderEnabled: true, completedAt: null },
-        { text: 'Plan today’s study sessions', done: false, reminderEnabled: true, completedAt: null },
-        { text: 'Practice problem set', done: false, reminderEnabled: true, completedAt: null }
+        { _id: generateId(), text: 'Review flashcards', done: false, reminderEnabled: true, completedAt: null },
+        { _id: generateId(), text: 'Plan today’s study sessions', done: false, reminderEnabled: true, completedAt: null },
+        { _id: generateId(), text: 'Practice problem set', done: false, reminderEnabled: true, completedAt: null }
       ],
       lastCompletedDate: null
-    });
+    };
   }
-  return user;
+  return userStore;
 };
 
 app.get('/api/user', async (req, res) => {
   const user = await ensureUser();
-  const userObj = user.toObject();
+  const userObj = user;
   const tasks = userObj.tasks.map((task) => ({
     ...task,
     revisions: buildTaskRevisionSchedule(task)
@@ -126,8 +123,8 @@ app.post('/api/tasks', async (req, res) => {
     return res.status(400).json({ error: 'Task text is required.' });
   }
   const user = await ensureUser();
-  user.tasks.push({ text: text.trim(), done: false, reminderEnabled: reminderEnabled !== false, completedAt: null });
-  await user.save();
+  user.tasks.push({ _id: generateId(), text: text.trim(), done: false, reminderEnabled: reminderEnabled !== false, completedAt: null });
+  await saveUser();
   return res.json(user);
 });
 
@@ -135,7 +132,7 @@ app.patch('/api/tasks/:taskId', async (req, res) => {
   const { taskId } = req.params;
   const { done, text } = req.body;
   const user = await ensureUser();
-  const task = user.tasks.id(taskId);
+  const task = user.tasks.find((task) => task._id === taskId);
   if (!task) {
     return res.status(404).json({ error: 'Task not found.' });
   }
@@ -155,15 +152,15 @@ app.patch('/api/tasks/:taskId', async (req, res) => {
     task.reminderEnabled = reminderEnabled;
   }
   user.level = getLevel(user.xp);
-  await user.save();
+  await saveUser();
   return res.json(user);
 });
 
 app.delete('/api/tasks/:taskId', async (req, res) => {
   const { taskId } = req.params;
   const user = await ensureUser();
-  user.tasks.id(taskId)?.remove();
-  await user.save();
+  user.tasks = user.tasks.filter((task) => task._id !== taskId);
+  await saveUser();
   return res.json(user);
 });
 
@@ -178,9 +175,9 @@ app.post('/api/study', async (req, res) => {
   user.monthHours = Number((user.monthHours + added).toFixed(1));
   user.xp += Math.round(added * 10);
   user.level = getLevel(user.xp);
-  await user.save();
+  await saveUser();
   return res.json({
-    ...user.toObject(),
+    ...user,
     level: user.level,
     xpProgress: user.xp % 200,
     revision: buildRevisionData(user)
@@ -197,9 +194,9 @@ app.post('/api/streak', async (req, res) => {
     if (user.lastCompletedDate !== today) {
       user.streak = 0;
     }
-    await user.save();
+    await saveUser();
     return res.json({
-      ...user.toObject(),
+      ...user,
       message: 'Complete all tasks to preserve your streak.'
     });
   }
@@ -209,15 +206,15 @@ app.post('/api/streak', async (req, res) => {
     user.xp += 30;
     user.lastCompletedDate = today;
     user.level = getLevel(user.xp);
-    await user.save();
+    await saveUser();
     return res.json({
-      ...user.toObject(),
+      ...user,
       message: 'Streak recovered with an extra action!'
     });
   }
 
   return res.json({
-    ...user.toObject(),
+    ...user,
     message: 'All tasks are complete, add one extra action to lock in the streak.'
   });
 });
@@ -229,9 +226,9 @@ app.post('/api/exam-date', async (req, res) => {
   }
   const user = await ensureUser();
   user.examDate = examDate;
-  await user.save();
+  await saveUser();
   return res.json({
-    ...user.toObject(),
+    ...user,
     level: getLevel(user.xp),
     xpProgress: user.xp % 200,
     revision: buildRevisionData(user),
