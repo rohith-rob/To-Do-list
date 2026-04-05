@@ -244,6 +244,32 @@ app.get('/api/revision', async (req, res) => {
   return res.json({ revision: buildRevisionData(user) });
 });
 
+app.get('/api/leaderboard', async (req, res) => {
+  const user = await ensureUser();
+  // Simulate AI study partners for competition
+  const aiPartners = [
+    { name: 'StudyBot Alpha', xp: 1250, streak: 15, todayHours: 4.5, monthHours: 120, level: 7 },
+    { name: 'FocusMaster AI', xp: 980, streak: 12, todayHours: 3.8, monthHours: 95, level: 5 },
+    { name: 'BrainBoost Bot', xp: 1450, streak: 18, todayHours: 5.2, monthHours: 135, level: 8 },
+    { name: 'ScholarAI Pro', xp: 780, streak: 9, todayHours: 3.1, monthHours: 85, level: 4 }
+  ];
+
+  const currentUser = {
+    name: 'You',
+    xp: user.xp,
+    streak: user.streak,
+    todayHours: user.todayHours,
+    monthHours: user.monthHours,
+    level: getLevel(user.xp)
+  };
+
+  const leaderboard = [currentUser, ...aiPartners]
+    .sort((a, b) => b.xp - a.xp)
+    .map((entry, index) => ({ ...entry, rank: index + 1 }));
+
+  return res.json({ leaderboard });
+});
+
 app.listen(PORT, () => {
   console.log(`StudyStreak API listening on http://localhost:${PORT}`);
 });

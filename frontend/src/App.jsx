@@ -13,9 +13,11 @@ function App() {
   const [timerActive, setTimerActive] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [timerOverlayOpen, setTimerOverlayOpen] = useState(false);
+  const [leaderboard, setLeaderboard] = useState([]);
 
   useEffect(() => {
     refreshUser();
+    fetchLeaderboard();
   }, []);
 
   useEffect(() => {
@@ -61,8 +63,19 @@ function App() {
       const response = await fetch(`${API_BASE}/api/user`);
       const data = await response.json();
       setUser(data);
+      await fetchLeaderboard();
     } catch (error) {
       setStatusMessage('Unable to load your StudyStreak data.');
+    }
+  };
+
+  const fetchLeaderboard = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/leaderboard`);
+      const data = await response.json();
+      setLeaderboard(data.leaderboard);
+    } catch (error) {
+      console.error('Unable to load leaderboard.');
     }
   };
 
@@ -330,6 +343,36 @@ function App() {
               </div>
               <div className="mt-5 h-4 overflow-hidden rounded-full bg-slate-800">
                 <div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-blue-500 transition-all duration-700" style={{ width: `${stats.xpProgress ?? 0}%` }} />
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-6 shadow-glow">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Study partners</p>
+                  <h2 className="mt-2 text-xl font-semibold text-white">Competitive Leaderboard</h2>
+                </div>
+                <span className="rounded-2xl bg-slate-800/90 px-3 py-1 text-xs uppercase tracking-[0.2em] text-slate-300">AI Partners</span>
+              </div>
+              <p className="mt-4 text-sm text-slate-400">Compete with AI study partners and see how you rank!</p>
+              <div className="mt-5 space-y-3">
+                {leaderboard.slice(0, 5).map((entry) => (
+                  <div key={entry.name} className={`flex items-center justify-between rounded-3xl border p-4 transition ${entry.name === 'You' ? 'border-cyan-500/50 bg-cyan-500/5' : 'border-slate-800 bg-slate-950/80'}`}>
+                    <div className="flex items-center gap-3">
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${entry.rank === 1 ? 'bg-yellow-500 text-slate-950' : entry.rank === 2 ? 'bg-slate-400 text-slate-950' : entry.rank === 3 ? 'bg-amber-600 text-slate-950' : 'bg-slate-700 text-slate-200'}`}>
+                        {entry.rank}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-white">{entry.name}</p>
+                        <p className="text-xs text-slate-400">Level {entry.level} • {entry.streak} day streak</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-white">{entry.xp} XP</p>
+                      <p className="text-xs text-slate-400">{entry.todayHours}h today</p>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
